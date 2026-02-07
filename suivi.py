@@ -1,7 +1,40 @@
 import streamlit as st
 import pandas as pd
 import os
+import time  # <--- NOUVEL IMPORT IMPORTANT
 
+# --- 0. CONFIGURATION DE LA PAGE & INTRO ---
+# On configure la page pour qu'elle prenne toute la largeur
+st.set_page_config(page_title="Suivi Chantier Noria", layout="wide")
+
+# Vérifie si l'intro a déjà été montrée
+if "intro_complete" not in st.session_state:
+    # C'est le tout premier lancement !
+    
+    # On crée un conteneur vide pour l'animation
+    intro_placeholder = st.empty()
+    
+    with intro_placeholder.container():
+        # 1. On affiche l'image en grand
+        # Assure-toi que l'image s'appelle bien "noria.jpg" et est dans le dossier
+        st.image("noria.jpg", use_container_width=True) 
+        
+        # 2. On affiche le texte "Flottant" avec du style HTML/CSS (Centré, Bleu, Gros)
+        st.markdown("""
+            <div style='text-align: center; color: #1f77b4; margin-top: -50px;'>
+                <h1 style='font-size: 50px;'>Projet Noria Parcelle G1</h1>
+                <h2 style='font-size: 30px;'>Construction 108 Villas</h2>
+            </div>
+            """, unsafe_allow_html=True)
+    
+    # On attend 3 secondes
+    time.sleep(3)
+    
+    # On efface tout !
+    intro_placeholder.empty()
+    
+    # On marque l'intro comme "Vue" pour ne plus la refaire
+    st.session_state["intro_complete"] = True
 # --- 1. CONFIGURATION ---
 # C'est ici que le fichier de sauvegarde sera créé
 FICHIER_DONNEES = "mon_suivi.csv"
