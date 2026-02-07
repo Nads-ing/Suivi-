@@ -8,12 +8,11 @@ st.set_page_config(page_title="Suivi Chantier Noria", layout="wide")
 
 # Vérifie si l'intro a déjà été montrée
 if "intro_complete" not in st.session_state:
-    # C'est le tout premier lancement !
     
     intro_placeholder = st.empty()
     
     with intro_placeholder.container():
-        # PETITE ASTUCE CSS : On enlève les marges blanches pour que l'image soit vraiment GRANDE
+        # CSS pour image plein écran
         st.markdown("""
             <style>
                    .block-container {
@@ -24,16 +23,22 @@ if "intro_complete" not in st.session_state:
             </style>
             """, unsafe_allow_html=True)
         
-        # 1. On affiche JUSTE l'image en grand (sans le texte)
         st.image("noria.jpg", use_container_width=True)
     
-    # On attend 3 secondes
-    time.sleep(3)
+    # 1. On affiche l'image pendant 2 secondes (un peu moins long)
+    time.sleep(2)
     
-    # On efface tout !
+    # 2. TRANSITION DOUCE : On affiche un "spinner" de chargement
+    # Cela permet à l'œil de comprendre que la page va changer
+    with st.spinner("Chargement du tableau de bord..."):
+        time.sleep(1.5) # On fait semblant de charger pendant 1.5 secondes
+    
+    # 3. On efface l'intro
     intro_placeholder.empty()
     
-    # On marque l'intro comme "Vue" pour ne plus la refaire
+    # 4. Petit message "Toast" en bas à droite pour dire bienvenue (Optionnel mais sympa)
+    st.toast("Bienvenue sur le projet Noria !", icon="🏗️")
+    
     st.session_state["intro_complete"] = True
 
 # --- 1. CONFIGURATION ---
