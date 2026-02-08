@@ -1,28 +1,16 @@
 import streamlit as st
 import time
-import os
 
-# --- 0. CONFIGURATION DE LA PAGE ---
+# --- 0. CONFIGURATION DE LA PAGE & INTRO ---
 st.set_page_config(page_title="Suivi Chantier Noria", layout="wide")
 
-# CSS Minimaliste pour l'interface
-st.markdown("""
-    <style>
-        .stAlert { margin-top: 10px; }
-    </style>
-""", unsafe_allow_html=True)
-
-# Intro
+# Intro (Animation de bienvenue)
 if "intro_complete" not in st.session_state:
     intro_placeholder = st.empty()
     with intro_placeholder.container():
-        # Assure-toi que "noria.jpg" est bien dans le dossier du script
-        try:
-            st.image("noria.jpg", use_container_width=True)
-        except:
-            st.warning("Image 'noria.jpg' non trouvée.")
+        st.image("noria.jpg", use_container_width=True)
     time.sleep(2)
-    with st.spinner("Chargement de l'espace documentaire..."):
+    with st.spinner("Chargement de l'espace projet..."):
         time.sleep(1.0)
     intro_placeholder.empty()
     st.toast("Bienvenue sur le projet Noria !", icon="🏗️")
@@ -51,54 +39,60 @@ else:
 
 st.sidebar.divider()
 
+# Menu simplifié sans le Tableau de Bord
 choix_menu = st.sidebar.radio(
-    "Accéder à :",
+    "Aller vers :",
     ["📁 Dossier de démarrage", "📂 Suivi de chaque tâche"]
 )
 
 # --- 3. AFFICHAGE PRINCIPAL ---
 
-# --- VUE : DOSSIER DE DÉMARRAGE ---
+# OPTION 1 : DOSSIER DE DÉMARRAGE
 if choix_menu == "📁 Dossier de démarrage":
     st.title("📁 Dossier de Démarrage")
-    st.markdown("---")
+    st.info("Consultez ici les documents administratifs et techniques globaux du projet.")
     
     col1, col2 = st.columns(2)
     with col1:
         st.subheader("📄 Documents Administratifs")
-        st.write("- [ ] Autorisation de construire")
-        st.write("- [ ] PV d'ouverture de chantier")
-        st.write("- [ ] Police d'assurance (TRC)")
-        
+        st.write("- Permis de construire")
+        st.write("- PV d'installation de chantier")
+        st.write("- Assurances RC / Décennale")
+    
     with col2:
         st.subheader("📐 Plans Généraux")
-        st.write("- [ ] Plan de masse")
-        st.write("- [ ] Plan d'implantation")
-        st.write("- [ ] Rapport Géotechnique")
+        st.write("- Plan de masse")
+        st.write("- Plan de situation")
+        st.write("- Rapport géotechnique (G2)")
 
-# --- VUE : EXPLORATEUR DE TÂCHES ---
+# OPTION 2 : SUIVI PAR TÂCHE / VILLA
 elif choix_menu == "📂 Suivi de chaque tâche":
-    st.title("📂 Explorateur de Dossiers (Vue Arborescence)")
-    st.markdown("---")
+    st.title("📂 Explorateur de Dossiers")
+    st.write("Naviguez dans l'arborescence technique par villa et par étape.")
     
     col_a, col_b = st.columns(2)
     with col_a:
-        folder_tache = st.selectbox("Sélectionner la tâche :", LISTE_TACHES)
+        folder_tache = st.selectbox("Sélectionnez la tâche :", LISTE_TACHES)
     with col_b:
-        folder_villa = st.selectbox("Sélectionner la villa :", LISTE_VILLAS)
+        folder_villa = st.selectbox("Sélectionnez la villa :", LISTE_VILLAS)
     
-    st.info(f"📍 Chemin : **{folder_tache}** > **{folder_villa}**")
+    st.divider()
+    st.markdown(f"### 📍 Emplacement : `{folder_tache}` > `{folder_villa}`")
     
-    st.markdown("### 📁 Documents disponibles")
-    
-    container = st.container(border=True)
+    # Simulation de l'arborescence des fichiers
+    st.markdown("#### 📂 Documents disponibles")
     
     if "Réception des axes" in folder_tache:
-        container.write("📄 **Sous-dossier Archi** : [Autocontrôle.pdf] | [PV.pdf]")
-        container.write("📐 **Sous-dossier Topo** : [Scan_Topo.pdf]")
+        st.info("📑 **Sous-dossier Archi** : [Autocontrôle.pdf] | [PV.pdf]")
+        st.info("📐 **Sous-dossier Topo** : [Scan_Topo.pdf]")
     elif "semelles" in folder_tache:
-        container.write("📄 **Documents Techniques** : [Autocontrôle.pdf] | [PV Ferraillage.pdf] | [Fiche Béton.pdf]")
+        st.info("📄 **Documents Techniques** : [Ferraillage_Approuvé.pdf] | [PV_Reception.pdf]")
+        st.info("🧪 **Laboratoire** : [Essai_Béton.pdf]")
     else:
-        container.write("📄 **Document Unique** : [Doc_Réception.pdf]")
+        st.info("📄 **Document** : [Fiche_Controle_Unique.pdf]")
 
-    st.button("🔄 Actualiser les fichiers")
+    # Zone de dépôt pour l'admin
+    if password == "Noria2026":
+        st.divider()
+        st.subheader("📤 Ajouter un document")
+        st.file_uploader(f"Télécharger un fichier pour {folder_villa}", type=["pdf", "jpg", "png"])
