@@ -1,33 +1,14 @@
 import streamlit as st
-import pandas as pd
-import os
 import time
-import streamlit.components.v1 as components
+import os
 
-# --- 0. CONFIGURATION DE LA PAGE & INTRO ---
+# --- 0. CONFIGURATION DE LA PAGE ---
 st.set_page_config(page_title="Suivi Chantier Noria", layout="wide")
 
-# CSS PERSONNALISÉ AMÉLIORÉ
+# CSS Minimaliste pour l'interface
 st.markdown("""
     <style>
-        /* Force le tableau à prendre toute la largeur sans défiler bizarrement */
-        .stTable {
-            width: 100%;
-            pointer-events: none; /* Désactive TOUT clic ou interaction sur le tableau */
-        }
-        
-        /* Style des cellules pour éviter les retours à la ligne */
-        .stTable td, .stTable th {
-            text-align: center !important;
-            white-space: nowrap !important;
-            padding: 5px !important;
-        }
-
-        /* En-tête fixe et coloré */
-        .stTable th {
-            background-color: #f0f2f6 !important;
-            color: #1f77b4 !important;
-        }
+        .stAlert { margin-top: 10px; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -35,16 +16,19 @@ st.markdown("""
 if "intro_complete" not in st.session_state:
     intro_placeholder = st.empty()
     with intro_placeholder.container():
-        st.image("noria.jpg", use_container_width=True)
+        # Assure-toi que "noria.jpg" est bien dans le dossier du script
+        try:
+            st.image("noria.jpg", use_container_width=True)
+        except:
+            st.warning("Image 'noria.jpg' non trouvée.")
     time.sleep(2)
-    with st.spinner("Chargement du tableau de bord..."):
+    with st.spinner("Chargement de l'espace documentaire..."):
         time.sleep(1.0)
     intro_placeholder.empty()
     st.toast("Bienvenue sur le projet Noria !", icon="🏗️")
     st.session_state["intro_complete"] = True
 
-# --- 1. CONFIGURATION DES DONNÉES ---
-FICHIER_DONNEES = "mon_suivi_general.csv"
+# --- 1. CONFIGURATION DES LISTES ---
 LISTE_VILLAS = [f"Villa {i}" for i in range(1, 109)]
 LISTE_TACHES = [
     "1. Réception des axes",
@@ -53,80 +37,68 @@ LISTE_TACHES = [
     "4. Réception béton des semelles (Labo)"
 ]
 
-# --- 2. FONCTIONS ---
-def charger_donnees():
-    if os.path.exists(FICHIER_DONNEES):
-        df = pd.read_csv(FICHIER_DONNEES, index_col=0)
-    else:
-        df = pd.DataFrame(index=LISTE_TACHES, columns=LISTE_VILLAS)
-        df = df.fillna("À faire")
-        df.to_csv(FICHIER_DONNEES)
-    return df
-
-def sauvegarder(df):
-    df.to_csv(FICHIER_DONNEES)
-
-# --- 3. BARRE LATÉRALE ---
+# --- 2. BARRE LATÉRALE ---
 st.sidebar.title("🗂️ Navigation")
 
 st.sidebar.divider()
 st.sidebar.markdown("### 🔒 Espace Ingénieur")
 password = st.sidebar.text_input("Mot de passe Admin", type="password")
 
-IS_ADMIN = False
 if password == "Noria2026": 
-    IS_ADMIN = True
-    st.sidebar.success("Mode Édition Activé ✅")
+    st.sidebar.success("Accès Autorisé ✅")
 else:
-    st.sidebar.info("Mode Lecture Seule 👀")
+    st.sidebar.info("Mode Consultation 👀")
 
 st.sidebar.divider()
 
 choix_menu = st.sidebar.radio(
-    "Aller vers :",
-    ["📊 Tableau de Suivi Général", "📁 Dossier de démarrage", "📂 Suivi de chaque tâche"]
+    "Accéder à :",
+    ["📁 Dossier de démarrage", "📂 Suivi de chaque tâche"]
 )
 
-# --- 4. AFFICHAGE PRINCIPAL ---
+# --- 3. AFFICHAGE PRINCIPAL ---
 
-if choix_menu == "📊 Tableau de Suivi Général":
-    st.title("📊 Tableau de Bord - Suivi 108 Villas")
-    
-    df = charger_donnees()
-
-    def colorer_cellules(val):
-        color = 'white'
-        if val == 'OK': color = '#d4edda'
-        elif val == 'Non Conforme': color = '#f8d7da'
-        elif val == 'En cours': color = '#fff3cd'
-        return f'background-color: {color}; color: black; white-space: nowrap;'
-
-    # CHANGEMENT ICI : On utilise st.table pour un rendu HTML fixe et propre
-    st.table(df.style.applymap(colorer_cellules))
-
-# ==========================================
-# VUES SECONDAIRES (LIÉES AUX MÊMES DONNÉES)
-# ==========================================
-elif choix_menu == "📁 Dossier de démarrage":
+# --- VUE : DOSSIER DE DÉMARRAGE ---
+if choix_menu == "📁 Dossier de démarrage":
     st.title("📁 Dossier de Démarrage")
-    st.info("Plans généraux, Permis, etc.")
+    st.markdown("---")
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        st.subheader("📄 Documents Administratifs")
+        st.write("- [ ] Autorisation de construire")
+        st.write("- [ ] PV d'ouverture de chantier")
+        st.write("- [ ] Police d'assurance (TRC)")
+        
+    with col2:
+        st.subheader("📐 Plans Généraux")
+        st.write("- [ ] Plan de masse")
+        st.write("- [ ] Plan d'implantation")
+        st.write("- [ ] Rapport Géotechnique")
 
+# --- VUE : EXPLORATEUR DE TÂCHES ---
 elif choix_menu == "📂 Suivi de chaque tâche":
     st.title("📂 Explorateur de Dossiers (Vue Arborescence)")
+    st.markdown("---")
     
-    folder_tache = st.selectbox("Ouvrir le dossier de la tâche :", LISTE_TACHES)
-    folder_villa = st.selectbox("Ouvrir la villa :", LISTE_VILLAS)
+    col_a, col_b = st.columns(2)
+    with col_a:
+        folder_tache = st.selectbox("Sélectionner la tâche :", LISTE_TACHES)
+    with col_b:
+        folder_villa = st.selectbox("Sélectionner la villa :", LISTE_VILLAS)
     
-    st.markdown(f"### 📂 {folder_tache} > {folder_villa}")
+    st.info(f"📍 Chemin : **{folder_tache}** > **{folder_villa}**")
+    
+    st.markdown("### 📁 Documents disponibles")
+    
+    container = st.container(border=True)
     
     if "Réception des axes" in folder_tache:
-        st.write("📄 **Sous-dossier Archi** : [Autocontrôle.pdf] | [PV.pdf]")
-        st.write("📐 **Sous-dossier Topo** : [Scan_Topo.pdf]")
+        container.write("📄 **Sous-dossier Archi** : [Autocontrôle.pdf] | [PV.pdf]")
+        container.write("📐 **Sous-dossier Topo** : [Scan_Topo.pdf]")
     elif "semelles" in folder_tache:
-        st.write("📄 **Documents** : [Autocontrôle.pdf] | [PV.pdf]")
+        container.write("📄 **Documents Techniques** : [Autocontrôle.pdf] | [PV Ferraillage.pdf] | [Fiche Béton.pdf]")
     else:
-        st.write("📄 **Document** : [Doc_Unique.pdf]")
-    
-    df = charger_donnees()
-    statut = df.at[folder_tache, folder_villa]
-    st.caption(f"Statut actuel dans le tableau : {statut}")
+        container.write("📄 **Document Unique** : [Doc_Réception.pdf]")
+
+    st.button("🔄 Actualiser les fichiers")
