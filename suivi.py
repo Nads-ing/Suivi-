@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import os
 import time
-import streamlit.components.v1 as components
 
 # --- 0. CONFIGURATION DE LA PAGE & INTRO ---
 st.set_page_config(page_title="Suivi Chantier Noria", layout="wide")
@@ -10,24 +9,10 @@ st.set_page_config(page_title="Suivi Chantier Noria", layout="wide")
 # CSS PERSONNALISÉ
 st.markdown("""
     <style>
-        /* Agrandir la police du tableau */
-        div[data-testid="stDataFrame"] div[data-testid="stTable"] {
-            font-size: 1.1rem !important;
-        }
-        div[data-testid="stDataFrame"] th {
-            font-size: 1.2rem !important;
-            background-color: #f0f2f6;
-            color: #1f77b4;
-            text-align: center;
-        }
         .block-container {
             padding-top: 1rem;
             padding-left: 1rem;
             padding-right: 1rem;
-        }
-        /* Zone Inspecteur (Cible du scroll) */
-        .inspecteur-target {
-            scroll-margin-top: 20px;
         }
         /* Style Inspecteur */
         .inspecteur-box {
@@ -35,9 +20,18 @@ st.markdown("""
             padding: 20px;
             border-radius: 10px;
             border-left: 5px solid #1f77b4;
-            margin-top: 10px;
+            margin-top: 20px;
             margin-bottom: 50px;
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        /* Boutons cellules */
+        div.stButton > button {
+            width: 100%;
+            height: 45px;
+            font-size: 0.85rem;
+            font-weight: bold;
+            border-radius: 5px;
+            border: 1px solid #ddd;
         }
     </style>
 """, unsafe_allow_html=True)
@@ -77,6 +71,17 @@ def charger_donnees():
 def sauvegarder(df):
     df.to_csv(FICHIER_DONNEES)
 
+def couleur_statut(statut):
+    """Retourne la couleur selon le statut"""
+    if statut == "OK":
+        return "#28a745"  # Vert
+    elif statut == "Non Conforme":
+        return "#dc3545"  # Rouge
+    elif statut == "En cours":
+        return "#ffc107"  # Jaune
+    else:
+        return "#6c757d"  # Gris
+
 # --- 3. BARRE LATÉRALE ---
 st.sidebar.title("🗂️ Navigation")
 
@@ -105,119 +110,122 @@ if choix_menu == "📊 Tableau de Suivi Général":
     
     df = charger_donnees()
     
-    # Initialisation des variables de session pour la synchro
-    if 'selected_tache_index' not in st.session_state:
-        st.session_state['selected_tache_index'] = 0
-    if 'selected_villa_index' not in st.session_state:
-        st.session_state['selected_villa_index'] = 0
-    if 'trigger_scroll' not in st.session_state:
-        st.session_state['trigger_scroll'] = False
+    # Initialisation des variables de session
+    if 'selected_tache' not in st.session_state:
+        st.session_state['selected_tache'] = LISTE_TACHES[0]
+    if 'selected_villa' not in st.session_state:
+        st.session_state['selected_villa'] = LISTE_VILLAS[0]
+    if 'scroll_to_inspector' not in st.session_state:
+        st.session_state['scroll_to_inspector'] = False
 
-    # --- A. LE TABLEAU (AVEC DÉTECTION DU CLIC SUR LA CELLULE) ---
-    st.info("👇 Cliquez sur une case pour voir les détails en bas (automatique).")
-
-    def colorer_cellules(val):
-        color = 'white'
-        if val == 'OK': color = '#d4edda'; font_weight = 'bold'
-        elif val == 'Non Conforme': color = '#f8d7da'; font_weight = 'bold'
-        elif val == 'En cours': color = '#fff3cd'; font_weight = 'normal'
-        else: color = 'white'; font_weight = 'normal'
-        return f'background-color: {color}; color: black; font-weight: {font_weight}'
-
-    # Affichage du tableau avec détection de CELLULE (pas juste ligne)
-    event = st.dataframe(
-        df.style.applymap(colorer_cellules),
-        use_container_width=True,
-        height=400,
-        on_select="rerun",
-        selection_mode="single-cell"  # 🎯 CHANGEMENT : détecte ligne ET colonne
-    )
-
-    # --- LOGIQUE INTELLIGENTE : CLIC CELLULE -> MISE À JOUR TÂCHE + VILLA -> SCROLL ---
-    if len(event.selection.rows) > 0 and len(event.selection.columns) > 0:
-        row_clicked = event.selection.rows[0]      # Index de la tâche
-        col_clicked = event.selection.columns[0]   # Index de la villa
+    # --- A. SÉLECTION RAPIDE (OPTIONNEL - POUR LE BOSS) ---
+    with st.expander("🎯 Accès Rapide - Sélection Manuelle", expanded=False):
+        col_t, col_v = st.columns(2)
+        with col_t:
+            quick_tache = st.selectbox("Tâche", LISTE_TACHES, key="quick_tache")
+        with col_v:
+            quick_villa = st.selectbox("Villa", LISTE_VILLAS, key="quick_villa")
         
-        # Si c'est une nouvelle cellule (tâche OU villa différente)
-        if (row_clicked != st.session_state['selected_tache_index'] or 
-            col_clicked != st.session_state['selected_villa_index']):
-            
-            # 🎯 Mise à jour des DEUX sélections
-            st.session_state['selected_tache_index'] = row_clicked
-            st.session_state['selected_villa_index'] = col_clicked
-            st.session_state['trigger_scroll'] = True  # Déclenche le scroll auto
+        if st.button("📍 Charger cette cellule", use_container_width=True):
+            st.session_state['selected_tache'] = quick_tache
+            st.session_state['selected_villa'] = quick_villa
+            st.session_state['scroll_to_inspector'] = True
+            st.rerun()
+
+    st.divider()
+
+    # --- B. TABLEAU VISUEL AVEC BOUTONS CLIQUABLES ---
+    st.subheader("📋 Vue d'ensemble des 4 tâches")
+    st.info("👇 Cliquez sur n'importe quelle case pour voir les détails en bas.")
     
-    # --- B. ANCRE HTML POUR LE SCROLL ---
-    st.markdown("<div id='inspecteur_ancre' class='inspecteur-target'></div>", unsafe_allow_html=True)
+    # Pour chaque tâche, on affiche une ligne avec des boutons cliquables
+    for tache in LISTE_TACHES:
+        st.markdown(f"**{tache}**")
+        
+        # On affiche 9 villas par ligne (pour que ça rentre)
+        num_cols = 9
+        villa_chunks = [LISTE_VILLAS[i:i+num_cols] for i in range(0, len(LISTE_VILLAS), num_cols)]
+        
+        for chunk in villa_chunks:
+            cols = st.columns(len(chunk))
+            
+            for idx, villa in enumerate(chunk):
+                statut = df.at[tache, villa]
+                couleur = couleur_statut(statut)
+                
+                with cols[idx]:
+                    # Bouton cliquable avec couleur
+                    label = f"{villa.split()[1]}"  # Juste le numéro (ex: "1" au lieu de "Villa 1")
+                    
+                    # Utilisation d'un key unique pour chaque bouton
+                    button_key = f"btn_{tache}_{villa}"
+                    
+                    # Style inline du bouton
+                    st.markdown(
+                        f"""<style>
+                        div[data-testid="stButton"] button[kind="secondary"][data-key="{button_key}"] {{
+                            background-color: {couleur} !important;
+                            color: white !important;
+                        }}
+                        </style>""",
+                        unsafe_allow_html=True
+                    )
+                    
+                    if st.button(label, key=button_key, use_container_width=True):
+                        # ✅ MISE À JOUR INSTANTANÉE
+                        st.session_state['selected_tache'] = tache
+                        st.session_state['selected_villa'] = villa
+                        st.session_state['scroll_to_inspector'] = True
+                        st.rerun()
+        
+        st.markdown("<br>", unsafe_allow_html=True)
 
-    # --- C. JAVASCRIPT POUR FAIRE LE SCROLL AUTOMATIQUE ---
-    if st.session_state['trigger_scroll']:
-        components.html("""
-            <script>
-                var element = window.parent.document.getElementById('inspecteur_ancre');
-                if (element) {
-                    element.scrollIntoView({behavior: 'smooth', block: 'start'});
-                }
-            </script>
-        """, height=0)
-        st.session_state['trigger_scroll'] = False  # Désarme le scroll
+    # --- C. ZONE INSPECTEUR (AUTO-SCROLL SIMULÉ) ---
+    
+    # Si on vient de cliquer, on affiche d'abord un placeholder vide pour "pousser" vers le bas
+    if st.session_state['scroll_to_inspector']:
+        st.markdown("<br>" * 3, unsafe_allow_html=True)  # Espacement
+        st.session_state['scroll_to_inspector'] = False
 
-
-    # --- D. L'INSPECTEUR (ZONE BLEUE) - MAINTENANT 100% SYNCHRONISÉ ---
+    st.markdown("---")
+    st.markdown("## 🔎 Inspecteur de Cellule")
+    
     with st.container():
-        st.markdown("""<div class="inspecteur-box"><h3>🔎 Détails & Documents</h3>""", unsafe_allow_html=True)
+        st.markdown("""<div class="inspecteur-box">""", unsafe_allow_html=True)
         
-        c1, c2 = st.columns([1, 2])
+        # Affichage de la sélection actuelle
+        st.markdown(f"### 📍 Cellule Sélectionnée : **{st.session_state['selected_tache']}** × **{st.session_state['selected_villa']}**")
         
-        with c1:
-            # SÉLECTEUR DE TÂCHE : Piloté par le clic du tableau
-            tache_select = st.selectbox(
-                "Tâche sélectionnée :", 
-                LISTE_TACHES, 
-                index=st.session_state['selected_tache_index'],
-                key="box_tache"
-            )
-            # Synchro manuelle si le boss change manuellement la tâche
-            st.session_state['selected_tache_index'] = LISTE_TACHES.index(tache_select)
-        with c2:
-            # SÉLECTEUR DE VILLA : 🎯 MAINTENANT AUSSI PILOTÉ PAR LE CLIC !
-            villa_select = st.selectbox(
-                "Choisir la Villa concernée :", 
-                LISTE_VILLAS,
-                index=st.session_state['selected_villa_index'], 
-                key="box_villa"
-            )
-            # Synchro manuelle si le boss change manuellement la villa
-            st.session_state['selected_villa_index'] = LISTE_VILLAS.index(villa_select)
-
-        # Récupération du statut de la cellule sélectionnée
+        tache_select = st.session_state['selected_tache']
+        villa_select = st.session_state['selected_villa']
+        
+        # Récupération du statut
         statut_actuel = df.at[tache_select, villa_select]
         
         st.markdown("---")
         
         col_docs, col_valid = st.columns([2, 1])
 
-        # PARTIE DOCUMENTS (DYNAMIQUE SELON LA TÂCHE CLIQUÉE)
+        # PARTIE DOCUMENTS (DYNAMIQUE SELON LA TÂCHE)
         with col_docs:
             st.markdown(f"**📂 Preuves pour : {tache_select}**")
             
-            # Affichage intelligent selon la tâche
             if "Réception des axes" in tache_select:
-                doc_type = st.radio("Type de doc :", ["Archi", "Topo"], horizontal=True)
+                doc_type = st.radio("Type de doc :", ["Archi", "Topo"], horizontal=True, key="radio_doc_type")
                 if doc_type == "Archi":
                     c_a, c_b = st.columns(2)
-                    c_a.button(f"📂 Autocontrôle ({villa_select})", use_container_width=True)
-                    c_b.button(f"📄 PV Archi ({villa_select})", use_container_width=True)
+                    c_a.button(f"📂 Autocontrôle ({villa_select})", use_container_width=True, key="btn_auto_archi")
+                    c_b.button(f"📄 PV Archi ({villa_select})", use_container_width=True, key="btn_pv_archi")
                 else:
-                    st.button(f"📐 Scan Topo ({villa_select})", use_container_width=True)
+                    st.button(f"📐 Scan Topo ({villa_select})", use_container_width=True, key="btn_topo")
 
             elif "fond de fouille" in tache_select:
-                 st.button(f"📄 Document Unique ({villa_select})", use_container_width=True)
+                 st.button(f"📄 Document Unique ({villa_select})", use_container_width=True, key="btn_fond_fouille")
 
             elif "semelles" in tache_select:
                 c_a, c_b = st.columns(2)
-                c_a.button(f"📂 Autocontrôle ({villa_select})", use_container_width=True)
-                c_b.button(f"📄 PV Réception ({villa_select})", use_container_width=True)
+                c_a.button(f"📂 Autocontrôle ({villa_select})", use_container_width=True, key="btn_auto_sem")
+                c_b.button(f"📄 PV Réception ({villa_select})", use_container_width=True, key="btn_pv_sem")
             
             else:
                 st.info("Pas de configuration pour cette tâche.")
@@ -228,25 +236,26 @@ if choix_menu == "📊 Tableau de Suivi Général":
             if IS_ADMIN:
                 opts = ["À faire", "En cours", "OK", "Non Conforme"]
                 idx = opts.index(statut_actuel) if statut_actuel in opts else 0
-                new_statut = st.radio("Statut", opts, index=idx, label_visibility="collapsed")
+                new_statut = st.radio("Statut", opts, index=idx, label_visibility="collapsed", key="radio_statut")
                 
                 if new_statut != statut_actuel:
                     df.at[tache_select, villa_select] = new_statut
                     sauvegarder(df)
-                    st.success("Enregistré !")
-                    time.sleep(0.5)
+                    st.success("✅ Enregistré !")
+                    time.sleep(0.8)
                     st.rerun()
             else:
                 # Vue Boss (Lecture seule)
-                color_text = "green" if statut_actuel == "OK" else "red" if statut_actuel == "Non Conforme" else "grey"
-                st.markdown(f"<h3 style='color:{color_text}'>{statut_actuel}</h3>", unsafe_allow_html=True)
-                if statut_actuel == "OK": st.balloons()
+                color_text = "green" if statut_actuel == "OK" else "red" if statut_actuel == "Non Conforme" else "orange" if statut_actuel == "En cours" else "grey"
+                st.markdown(f"<h2 style='color:{color_text}; text-align:center;'>{statut_actuel}</h2>", unsafe_allow_html=True)
+                if statut_actuel == "OK": 
+                    st.balloons()
 
-        st.markdown("</div>", unsafe_allow_html=True) 
+        st.markdown("</div>", unsafe_allow_html=True)
 
 
 # ==========================================
-# VUES SECONDAIRES (LIÉES AUX MÊMES DONNÉES)
+# VUES SECONDAIRES
 # ==========================================
 elif choix_menu == "📁 Dossier de démarrage":
     st.title("📁 Dossier de Démarrage")
