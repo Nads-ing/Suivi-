@@ -74,6 +74,20 @@ def charger_donnees():
         df.to_csv(FICHIER_DONNEES)
     return df
 
+def sauvegarder_fichier(uploaded_file, nom_tache, nom_villa, type_doc):
+    # Créer le dossier s'il n'existe pas
+    dossier = "fichiers_chantier"
+    if not os.path.exists(dossier):
+        os.makedirs(dossier)
+    
+    # Nettoyer le nom du fichier pour éviter les erreurs
+    nom_propre = f"{nom_tache}_{nom_villa}_{type_doc}.pdf".replace(" ", "_").replace(".", "")
+    chemin_complet = os.path.join(dossier, nom_propre + ".pdf")
+    
+    with open(chemin_complet, "wb") as f:
+        f.write(uploaded_file.getbuffer())
+    return chemin_complet
+
 def sauvegarder(df):
     df.to_csv(FICHIER_DONNEES)
 
@@ -223,26 +237,35 @@ if choix_menu == "📊 Tableau de Suivi Général":
                 st.info("Pas de configuration pour cette tâche.")
 
         # PARTIE VALIDATION (ADMIN SEULEMENT)
-        with col_valid:
-            st.markdown("**Validation**")
+        with col_docs:
+            st.markdown(f"**📂 Gestion des documents : {villa_select}**")
+            
+            # --- INTERFACE D'UPLOAD (RESERVÉE ADMIN) ---
             if IS_ADMIN:
-                opts = ["À faire", "En cours", "OK", "Non Conforme"]
-                idx = opts.index(statut_actuel) if statut_actuel in opts else 0
-                new_statut = st.radio("Statut", opts, index=idx, label_visibility="collapsed")
-                
-                if new_statut != statut_actuel:
-                    df.at[tache_select, villa_select] = new_statut
-                    sauvegarder(df)
-                    st.success("Enregistré !")
-                    time.sleep(0.5)
-                    st.rerun()
-            else:
-                # Vue Boss (Lecture seule)
-                color_text = "green" if statut_actuel == "OK" else "red" if statut_actuel == "Non Conforme" else "grey"
-                st.markdown(f"<h3 style='color:{color_text}'>{statut_actuel}</h3>", unsafe_allow_html=True)
-                if statut_actuel == "OK": st.balloons()
+                fichier_upload = st.file_uploader(f"Uploader un document pour {tache_select}", type=["pdf", "png", "jpg"])
+                if fichier_upload is not None:
+                    if st.button("📁 Valider l'envoi du fichier"):
+                        chemin = sauvegarder_fichier(fichier_upload, tache_select, villa_select, "Preuve")
+                        st.success(f"Fichier enregistré sous : {chemin}")
+            
+            st.divider()
 
-        st.markdown("</div>", unsafe_allow_html=True) 
+            # --- AFFICHAGE ET CONSULTATION ---
+            # On vérifie si un fichier existe pour cette villa et cette tâche
+            nom_cherche = f"{tache_select}_{villa_select}_Preuve".replace(" ", "_").replace(".", "") + ".pdf"
+            chemin_fichier = os.path.join("fichiers_chantier", nom_cherche)
+
+            if os.path.exists(chemin_fichier):
+                with open(chemin_fichier, "rb") as f:
+                    st.download_button(
+                        label=f"📥 Télécharger la preuve ({villa_select})",
+                        data=f,
+                        file_name=nom_cherche,
+                        mime="application/pdf",
+                        use_container_width=True
+                    )
+            else:
+                st.warning("⚠️ Aucun document disponible pour le moment.")
 
 
 # ==========================================
