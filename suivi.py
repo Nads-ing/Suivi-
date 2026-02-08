@@ -10,46 +10,22 @@ st.set_page_config(page_title="Suivi Chantier Noria", layout="wide")
 # CSS PERSONNALISÉ AMÉLIORÉ
 st.markdown("""
     <style>
-        /* Agrandir la police du tableau */
-        div[data-testid="stDataFrame"] div[data-testid="stTable"] {
-            font-size: 1.1rem !important;
-        }
-        div[data-testid="stDataFrame"] th {
-            font-size: 1.2rem !important;
-            background-color: #f0f2f6;
-            color: #1f77b4;
-            text-align: center;
-        }
-        
-        /* FIXE LE PROBLÈME DE FLOTTEMENT */
+        /* Stabilise le conteneur du tableau */
         div[data-testid="stDataFrame"] {
-            position: relative !important;
-        }
-        
-        div[data-testid="stDataFrame"] > div {
-            overflow-x: auto !important;
-            overflow-y: auto !important;
-        }
-        
-        /* Empêcher le déplacement des cellules */
-        div[data-testid="stDataFrame"] table {
-            table-layout: fixed !important;
+            position: static !important;
             width: 100% !important;
         }
         
-        .block-container {
-            padding-top: 1rem;
-            padding-left: 1rem;
-            padding-right: 1rem;
+        /* Enlève les bordures de sélection bleues au clic */
+        canvas {
+            outline: none !important;
         }
-        
-        /* Zone Inspecteur (Cible du scroll) */
-        .inspecteur-target {
-            scroll-margin-top: 20px;
+
+        /* Style des en-têtes */
+        div[data-testid="stDataFrame"] th {
+            background-color: #f0f2f6;
+            color: #1f77b4;
         }
-        
-            
-        
     </style>
 """, unsafe_allow_html=True)
 
@@ -115,87 +91,21 @@ if choix_menu == "📊 Tableau de Suivi Général":
     st.title("📊 Tableau de Bord - Suivi 108 Villas")
     
     df = charger_donnees()
-    
-    # Initialisation des variables de session
-    if 'selected_tache_index' not in st.session_state:
-        st.session_state['selected_tache_index'] = 0
-    if 'selected_villa_index' not in st.session_state:
-        st.session_state['selected_villa_index'] = 0
-    if 'trigger_scroll' not in st.session_state:
-        st.session_state['trigger_scroll'] = False
-    if 'last_clicked_cell' not in st.session_state:
-        st.session_state['last_clicked_cell'] = None
-
-    # --- A. LE TABLEAU (AVEC DÉTECTION DU CLIC SUR CELLULE) ---
-    st.info("👇 Cliquez sur une cellule pour voir les détails en bas (Tâche + Villa)")
 
     def colorer_cellules(val):
         color = 'white'
-        if val == 'OK': 
-            color = '#d4edda'
-            font_weight = 'bold'
-        elif val == 'Non Conforme': 
-            color = '#f8d7da'
-            font_weight = 'bold'
-        elif val == 'En cours': 
-            color = '#fff3cd'
-            font_weight = 'normal'
-        else: 
-            color = 'white'
-            font_weight = 'normal'
-        return f'background-color: {color}; color: black; font-weight: {font_weight}'
+        if val == 'OK': color = '#d4edda'
+        elif val == 'Non Conforme': color = '#f8d7da'
+        elif val == 'En cours': color = '#fff3cd'
+        return f'background-color: {color}; color: black;'
 
+    # Affichage simple et stable
     st.dataframe(
         df.style.applymap(colorer_cellules),
         use_container_width=True,
-        height=600 # Vous pouvez augmenter la hauteur puisqu'il y a plus de place
+        height=700
     )
-
-    # --- LOGIQUE INTELLIGENTE : CLIC CELLULE → MISE À JOUR TÂCHE + VILLA → SCROLL ---
-    cell_clicked = False
     
-    if len(event.selection.rows) > 0 and len(event.selection.columns) > 0:
-        row_index = event.selection.rows[0]
-        col_index = event.selection.columns[0]
-        
-        # Créer un identifiant unique de la cellule
-        current_cell = (row_index, col_index)
-        
-        # Vérifier si c'est une nouvelle cellule cliquée
-        if current_cell != st.session_state['last_clicked_cell']:
-            cell_clicked = True
-            st.session_state['last_clicked_cell'] = current_cell
-            st.session_state['selected_tache_index'] = row_index
-            st.session_state['selected_villa_index'] = col_index
-            st.session_state['trigger_scroll'] = True
-
-    # Afficher quelle cellule est sélectionnée
-    if st.session_state['last_clicked_cell'] is not None:
-        tache_name = LISTE_TACHES[st.session_state['selected_tache_index']]
-        villa_name = LISTE_VILLAS[st.session_state['selected_villa_index']]
-        st.markdown(
-            f"""<div class="selected-cell-info">
-            📍 Cellule sélectionnée : <strong>{tache_name}</strong> × <strong>{villa_name}</strong>
-            </div>""", 
-            unsafe_allow_html=True
-        )
-
-    # --- B. ANCRE HTML POUR LE SCROLL ---
-    st.markdown("<div id='inspecteur_ancre' class='inspecteur-target'></div>", unsafe_allow_html=True)
-
-    # --- C. JAVASCRIPT POUR FAIRE LE SCROLL AUTOMATIQUE ---
-    if st.session_state['trigger_scroll']:
-        components.html("""
-            <script>
-                setTimeout(function() {
-                    var element = window.parent.document.getElementById('inspecteur_ancre');
-                    if (element) {
-                        element.scrollIntoView({behavior: 'smooth', block: 'start'});
-                    }
-                }, 100);
-            </script>
-        """, height=0)
-        st.session_state['trigger_scroll'] = False
 
     
 
