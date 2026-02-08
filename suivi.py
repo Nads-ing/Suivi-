@@ -177,6 +177,8 @@ if choix_menu == "📊 Tableau de Suivi Général":
                 index=st.session_state['selected_tache_index'],
                 key="box_tache"
             )
+            # Synchro manuelle si le boss change manuellement la tâche
+            st.session_state['selected_tache_index'] = LISTE_TACHES.index(tache_select)
         with c2:
             # SÉLECTEUR DE VILLA : 🎯 MAINTENANT AUSSI PILOTÉ PAR LE CLIC !
             villa_select = st.selectbox(
