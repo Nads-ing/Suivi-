@@ -48,27 +48,8 @@ st.markdown("""
             scroll-margin-top: 20px;
         }
         
-        /* Style Inspecteur */
-        .inspecteur-box {
-            background-color: #e3f2fd;
-            padding: 20px;
-            border-radius: 10px;
-            border-left: 5px solid #1f77b4;
-            margin-top: 10px;
-            margin-bottom: 50px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        }
+            
         
-        /* Highlight de la cellule sélectionnée */
-        .selected-cell-info {
-            background: linear-gradient(90deg, #1f77b4 0%, #2196F3 100%);
-            color: white;
-            padding: 10px 20px;
-            border-radius: 5px;
-            font-weight: bold;
-            margin: 10px 0;
-            text-align: center;
-        }
     </style>
 """, unsafe_allow_html=True)
 
@@ -164,13 +145,10 @@ if choix_menu == "📊 Tableau de Suivi Général":
             font_weight = 'normal'
         return f'background-color: {color}; color: black; font-weight: {font_weight}'
 
-    # Affichage du tableau avec sélection de CELLULE
-    event = st.dataframe(
+    st.dataframe(
         df.style.applymap(colorer_cellules),
         use_container_width=True,
-        height=400,
-        on_select="rerun",
-        selection_mode=["single-row", "single-column"]  # 🔥 CLEF : Capture ligne ET colonne
+        height=600 # Vous pouvez augmenter la hauteur puisqu'il y a plus de place
     )
 
     # --- LOGIQUE INTELLIGENTE : CLIC CELLULE → MISE À JOUR TÂCHE + VILLA → SCROLL ---
@@ -219,93 +197,7 @@ if choix_menu == "📊 Tableau de Suivi Général":
         """, height=0)
         st.session_state['trigger_scroll'] = False
 
-    # --- D. L'INSPECTEUR (ZONE BLEUE) - SYNCHRONISÉ AVEC LE TABLEAU ---
-    with st.container():
-        st.markdown("""<div class="inspecteur-box"><h3>🔎 Détails & Documents</h3>""", unsafe_allow_html=True)
-        
-        c1, c2 = st.columns([1, 2])
-        
-        with c1:
-            # SÉLECTEUR DE TÂCHE : Synchronisé avec le tableau
-            tache_select = st.selectbox(
-                "Tâche sélectionnée :", 
-                LISTE_TACHES, 
-                index=st.session_state['selected_tache_index'],
-                key="box_tache"
-            )
-            # Si l'utilisateur change manuellement la tâche dans le selectbox
-            new_tache_index = LISTE_TACHES.index(tache_select)
-            if new_tache_index != st.session_state['selected_tache_index']:
-                st.session_state['selected_tache_index'] = new_tache_index
-                st.session_state['last_clicked_cell'] = (new_tache_index, st.session_state['selected_villa_index'])
-        
-        with c2:
-            # SÉLECTEUR DE VILLA : Synchronisé avec le tableau
-            villa_select = st.selectbox(
-                "Choisir la Villa concernée :", 
-                LISTE_VILLAS,
-                index=st.session_state['selected_villa_index'], 
-                key="box_villa"
-            )
-            # Si l'utilisateur change manuellement la villa dans le selectbox
-            new_villa_index = LISTE_VILLAS.index(villa_select)
-            if new_villa_index != st.session_state['selected_villa_index']:
-                st.session_state['selected_villa_index'] = new_villa_index
-                st.session_state['last_clicked_cell'] = (st.session_state['selected_tache_index'], new_villa_index)
-
-        # Récupération du statut
-        statut_actuel = df.at[tache_select, villa_select]
-        
-        st.markdown("---")
-        
-        col_docs, col_valid = st.columns([2, 1])
-
-        # PARTIE DOCUMENTS (DYNAMIQUE SELON LA TÂCHE)
-        with col_docs:
-            st.markdown(f"**📂 Preuves pour : {tache_select}**")
-            
-            if "Réception des axes" in tache_select:
-                doc_type = st.radio("Type de doc :", ["Archi", "Topo"], horizontal=True)
-                if doc_type == "Archi":
-                    c_a, c_b = st.columns(2)
-                    c_a.button(f"📂 Autocontrôle ({villa_select})", use_container_width=True)
-                    c_b.button(f"📄 PV Archi ({villa_select})", use_container_width=True)
-                else:
-                    st.button(f"📐 Scan Topo ({villa_select})", use_container_width=True)
-
-            elif "fond de fouille" in tache_select:
-                st.button(f"📄 Document Unique ({villa_select})", use_container_width=True)
-
-            elif "semelles" in tache_select:
-                c_a, c_b = st.columns(2)
-                c_a.button(f"📂 Autocontrôle ({villa_select})", use_container_width=True)
-                c_b.button(f"📄 PV Réception ({villa_select})", use_container_width=True)
-            
-            else:
-                st.info("Pas de configuration pour cette tâche.")
-
-        # PARTIE VALIDATION (ADMIN SEULEMENT)
-        with col_valid:
-            st.markdown("**Validation**")
-            if IS_ADMIN:
-                opts = ["À faire", "En cours", "OK", "Non Conforme"]
-                idx = opts.index(statut_actuel) if statut_actuel in opts else 0
-                new_statut = st.radio("Statut", opts, index=idx, label_visibility="collapsed")
-                
-                if new_statut != statut_actuel:
-                    df.at[tache_select, villa_select] = new_statut
-                    sauvegarder(df)
-                    st.success("✅ Enregistré !")
-                    time.sleep(0.5)
-                    st.rerun()
-            else:
-                # Vue Boss
-                color_text = "green" if statut_actuel == "OK" else "red" if statut_actuel == "Non Conforme" else "grey"
-                st.markdown(f"<h3 style='color:{color_text}'>{statut_actuel}</h3>", unsafe_allow_html=True)
-                if statut_actuel == "OK": 
-                    st.balloons()
-
-        st.markdown("</div>", unsafe_allow_html=True) 
+    
 
 
 # ==========================================
