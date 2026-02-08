@@ -1,5 +1,5 @@
 import streamlit as st
-import x as pd
+import pandas as pd
 import os
 import time
 
