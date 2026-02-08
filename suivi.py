@@ -10,21 +10,23 @@ st.set_page_config(page_title="Suivi Chantier Noria", layout="wide")
 # CSS PERSONNALISÉ AMÉLIORÉ
 st.markdown("""
     <style>
-        /* Stabilise le conteneur du tableau */
-        div[data-testid="stDataFrame"] {
-            position: static !important;
-            width: 100% !important;
+        /* Force le tableau à prendre toute la largeur sans défiler bizarrement */
+        .stTable {
+            width: 100%;
+            pointer-events: none; /* Désactive TOUT clic ou interaction sur le tableau */
         }
         
-        /* Enlève les bordures de sélection bleues au clic */
-        canvas {
-            outline: none !important;
+        /* Style des cellules pour éviter les retours à la ligne */
+        .stTable td, .stTable th {
+            text-align: center !important;
+            white-space: nowrap !important;
+            padding: 5px !important;
         }
 
-        /* Style des en-têtes */
-        div[data-testid="stDataFrame"] th {
-            background-color: #f0f2f6;
-            color: #1f77b4;
+        /* En-tête fixe et coloré */
+        .stTable th {
+            background-color: #f0f2f6 !important;
+            color: #1f77b4 !important;
         }
     </style>
 """, unsafe_allow_html=True)
@@ -97,15 +99,10 @@ if choix_menu == "📊 Tableau de Suivi Général":
         if val == 'OK': color = '#d4edda'
         elif val == 'Non Conforme': color = '#f8d7da'
         elif val == 'En cours': color = '#fff3cd'
-        return f'background-color: {color}; color: black;'
+        return f'background-color: {color}; color: black; white-space: nowrap;'
 
-    # On affiche le dataframe SANS paramètres de sélection pour qu'il soit statique
-    st.dataframe(
-        df.style.applymap(colorer_cellules),
-        use_container_width=True,
-        height=600
-    )
-    
+    # CHANGEMENT ICI : On utilise st.table pour un rendu HTML fixe et propre
+    st.table(df.style.applymap(colorer_cellules))
 
 # ==========================================
 # VUES SECONDAIRES (LIÉES AUX MÊMES DONNÉES)
