@@ -1,366 +1,227 @@
 import streamlit as st
-import pandas as pd
-import time
-import json
+import x as pd
 import os
+import time
 
-# --- CONFIGURATION ---
+# --- 0. CONFIGURATION DE LA PAGE & INTRO ---
 st.set_page_config(page_title="Suivi Chantier Noria", layout="wide")
 
-# --- INTRO ---
+# CSS PERSONNALISÉ POUR EMBELLIR LE TABLEAU ET AGRANDIR LE TEXTE
+st.markdown("""
+    <style>
+        /* Agrandir la police du tableau */
+        div[data-testid="stDataFrame"] div[data-testid="stTable"] {
+            font-size: 1.2rem !important;
+        }
+        /* Agrandir les headers (Titres des colonnes) */
+        div[data-testid="stDataFrame"] th {
+            font-size: 1.3rem !important;
+            background-color: #f0f2f6;
+            color: #1f77b4;
+        }
+        /* Enlever les marges pour l'image d'intro */
+        .block-container {
+            padding-top: 1rem;
+            padding-left: 1rem;
+            padding-right: 1rem;
+        }
+        /* Style pour l'inspecteur */
+        .inspecteur-box {
+            background-color: #f9f9f9;
+            padding: 20px;
+            border-radius: 10px;
+            border: 1px solid #ddd;
+            margin-top: 20px;
+        }
+    </style>
+""", unsafe_allow_html=True)
+
+# Vérifie si l'intro a déjà été montrée
 if "intro_complete" not in st.session_state:
     intro_placeholder = st.empty()
     with intro_placeholder.container():
-        if os.path.exists("noria.jpg"):
-            st.image("noria.jpg", use_container_width=True)
+        st.image("noria.jpg", use_container_width=True)
+    
     time.sleep(2)
-    with st.spinner("Chargement de l'espace projet..."):
+    with st.spinner("Chargement du tableau de bord..."):
         time.sleep(1.0)
     intro_placeholder.empty()
     st.toast("Bienvenue sur le projet Noria !", icon="🏗️")
     st.session_state["intro_complete"] = True
 
-# --- INITIALISATION DES DONNÉES ---
-if "selected_menu" not in st.session_state:
-    st.session_state.selected_menu = "Tableau de suivi général"
-
-if "statuts" not in st.session_state:
-    # Statuts pour chaque tâche × villa (par défaut : "Pas encore")
-    taches = [
-        "Réception des axes",
-        "Réception ferraillage fond de fouille",
-        "Réception coffrage et ferraillage des semelles",
-        "Réception béton des semelles par le labo"
-    ]
-    villas = [f"Villa {i}" for i in range(1, 109)]
-    st.session_state.statuts = {
-        tache: {villa: "Pas encore" for villa in villas} for tache in taches
-    }
-
-if "documents" not in st.session_state:
-    # Stockage des documents uploadés
-    st.session_state.documents = {}
-
-if "selected_cell" not in st.session_state:
-    st.session_state.selected_cell = None
-
-# --- DÉFINITIONS ---
-TACHES = [
-    "Réception des axes",
-    "Réception ferraillage fond de fouille",
-    "Réception coffrage et ferraillage des semelles",
-    "Réception béton des semelles par le labo"
+# --- 1. CONFIGURATION DES DONNÉES ---
+FICHIER_DONNEES = "mon_suivi_general.csv"
+LISTE_VILLAS = [f"Villa {i}" for i in range(1, 109)]
+LISTE_TACHES = [
+    "1. Réception des axes",
+    "2. Réception fond de fouille",
+    "3. Réception coffrage et ferraillage semelles",
+    "4. Réception béton des semelles (Labo)"
 ]
 
-VILLAS = [f"Villa {i}" for i in range(1, 109)]
-
-STRUCTURES = ["Dallage", "Longrines", "Poteaux", "Semelles"]
-
-# --- SIDEBAR (MENU GAUCHE) ---
-with st.sidebar:
-    st.title("📋 Navigation")
-    
-    if st.button("📊 Tableau de suivi général", use_container_width=True, type="primary" if st.session_state.selected_menu == "Tableau de suivi général" else "secondary"):
-        st.session_state.selected_menu = "Tableau de suivi général"
-        st.rerun()
-    
-    if st.button("🚀 Dossier de démarrage de chantier", use_container_width=True, type="primary" if st.session_state.selected_menu == "Dossier de démarrage de chantier" else "secondary"):
-        st.session_state.selected_menu = "Dossier de démarrage de chantier"
-        st.rerun()
-    
-    if st.button("📁 Suivi de chaque tâche", use_container_width=True, type="primary" if st.session_state.selected_menu == "Suivi de chaque tâche" else "secondary"):
-        st.session_state.selected_menu = "Suivi de chaque tâche"
-        st.rerun()
-
-# --- ZONE PRINCIPALE (DROITE) ---
-st.title(st.session_state.selected_menu)
-
-# ============================================
-# === 1. TABLEAU DE SUIVI GÉNÉRAL ===
-# ============================================
-if st.session_state.selected_menu == "Tableau de suivi général":
-    
-    st.markdown("### 📊 Tableau de suivi général - Cliquez sur une cellule pour gérer les documents")
-    
-    # Créer le dataframe
-    df_data = []
-    for tache in TACHES:
-        row = [tache]
-        for villa in VILLAS:
-            statut = st.session_state.statuts[tache][villa]
-            row.append(statut)
-        df_data.append(row)
-    
-    df = pd.DataFrame(df_data, columns=["Tâche"] + VILLAS)
-    
-    # Afficher le tableau avec styling
-    st.dataframe(
-        df.style.applymap(
-            lambda x: 'background-color: #90EE90' if x == "OK" else 'background-color: #FFB6C1' if x == "Pas encore" else '',
-            subset=VILLAS
-        ),
-        use_container_width=True,
-        height=300
-    )
-    
-    st.markdown("---")
-    
-    # === SÉLECTION CELLULE ===
-    st.markdown("### 🔍 Gestion d'une cellule")
-    
-    col1, col2 = st.columns(2)
-    with col1:
-        tache_selectionnee = st.selectbox("📌 Sélectionner une tâche :", TACHES)
-    with col2:
-        villa_selectionnee = st.selectbox("🏠 Sélectionner une villa :", VILLAS)
-    
-    # Clé unique pour cette cellule
-    cell_key = f"{tache_selectionnee}|||{villa_selectionnee}"
-    
-    st.markdown(f"#### 📋 **{tache_selectionnee}** - **{villa_selectionnee}**")
-    
-    # Afficher le statut actuel
-    statut_actuel = st.session_state.statuts[tache_selectionnee][villa_selectionnee]
-    
-    col_stat, col_btn = st.columns([3, 1])
-    with col_stat:
-        st.info(f"**Statut actuel :** {statut_actuel}")
-    with col_btn:
-        if st.button("🔄 Changer statut"):
-            if statut_actuel == "OK":
-                st.session_state.statuts[tache_selectionnee][villa_selectionnee] = "Pas encore"
-            else:
-                st.session_state.statuts[tache_selectionnee][villa_selectionnee] = "OK"
-            st.rerun()
-    
-    st.markdown("---")
-    
-    # === DOCUMENTS SELON LA TÂCHE ===
-    st.markdown("### 📄 Documents associés")
-    
-    # Initialiser le stockage pour cette cellule
-    if cell_key not in st.session_state.documents:
-        st.session_state.documents[cell_key] = {}
-    
-    # === TÂCHE 1 : Réception des axes ===
-    if tache_selectionnee == "Réception des axes":
-        tab1, tab2 = st.tabs(["📐 ARCHI", "📏 TOPO"])
-        
-        with tab1:
-            st.markdown("#### Archi - Choisir le type")
-            doc_type_archi = st.radio("", ["Autocontrôle", "PV"], key="radio_archi_axes")
-            
-            doc_key = f"archi_{doc_type_archi}"
-            
-            uploaded = st.file_uploader(
-                f"📤 Uploader {doc_type_archi}", 
-                type=["pdf", "png", "jpg", "jpeg"],
-                key=f"upload_{cell_key}_archi_{doc_type_archi}"
-            )
-            
-            if uploaded:
-                st.session_state.documents[cell_key][doc_key] = uploaded
-                st.success(f"✅ {doc_type_archi} uploadé : {uploaded.name}")
-            
-            if doc_key in st.session_state.documents[cell_key]:
-                st.download_button(
-                    f"⬇️ Télécharger {doc_type_archi}",
-                    data=st.session_state.documents[cell_key][doc_key],
-                    file_name=st.session_state.documents[cell_key][doc_key].name
-                )
-        
-        with tab2:
-            st.markdown("#### Topo - Scan")
-            
-            uploaded_topo = st.file_uploader(
-                "📤 Uploader scan Topo", 
-                type=["pdf", "png", "jpg", "jpeg"],
-                key=f"upload_{cell_key}_topo"
-            )
-            
-            if uploaded_topo:
-                st.session_state.documents[cell_key]["topo"] = uploaded_topo
-                st.success(f"✅ Topo uploadé : {uploaded_topo.name}")
-            
-            if "topo" in st.session_state.documents[cell_key]:
-                st.download_button(
-                    "⬇️ Télécharger Topo",
-                    data=st.session_state.documents[cell_key]["topo"],
-                    file_name=st.session_state.documents[cell_key]["topo"].name
-                )
-    
-    # === TÂCHE 2 : Réception ferraillage fond de fouille ===
-    elif tache_selectionnee == "Réception ferraillage fond de fouille":
-        st.markdown("#### Document unique")
-        
-        uploaded = st.file_uploader(
-            "📤 Uploader le document", 
-            type=["pdf", "png", "jpg", "jpeg"],
-            key=f"upload_{cell_key}_doc"
-        )
-        
-        if uploaded:
-            st.session_state.documents[cell_key]["document"] = uploaded
-            st.success(f"✅ Document uploadé : {uploaded.name}")
-        
-        if "document" in st.session_state.documents[cell_key]:
-            st.download_button(
-                "⬇️ Télécharger Document",
-                data=st.session_state.documents[cell_key]["document"],
-                file_name=st.session_state.documents[cell_key]["document"].name
-            )
-    
-    # === TÂCHE 3 : Réception coffrage et ferraillage des semelles ===
-    elif tache_selectionnee == "Réception coffrage et ferraillage des semelles":
-        st.markdown("#### Choisir la structure puis le type de document")
-        
-        structure = st.selectbox("🏗️ Sélectionner la structure :", STRUCTURES, key="struct_tache3")
-        
-        doc_type = st.radio("Type de document :", ["Autocontrôle", "PV"], key="radio_tache3")
-        
-        doc_key = f"{structure}_{doc_type}"
-        
-        uploaded = st.file_uploader(
-            f"📤 Uploader {doc_type} - {structure}", 
-            type=["pdf", "png", "jpg", "jpeg"],
-            key=f"upload_{cell_key}_{structure}_{doc_type}"
-        )
-        
-        if uploaded:
-            st.session_state.documents[cell_key][doc_key] = uploaded
-            st.success(f"✅ {doc_type} - {structure} uploadé : {uploaded.name}")
-        
-        if doc_key in st.session_state.documents[cell_key]:
-            st.download_button(
-                f"⬇️ Télécharger {doc_type} - {structure}",
-                data=st.session_state.documents[cell_key][doc_key],
-                file_name=st.session_state.documents[cell_key][doc_key].name
-            )
-        
-        # Afficher tous les documents uploadés pour cette cellule
-        if st.session_state.documents[cell_key]:
-            st.markdown("##### 📚 Documents uploadés pour cette cellule :")
-            for key in st.session_state.documents[cell_key]:
-                st.text(f"✓ {key}")
-    
-    # === TÂCHE 4 : Réception béton des semelles par le labo ===
-    elif tache_selectionnee == "Réception béton des semelles par le labo":
-        st.markdown("#### Choisir la structure puis le type de document")
-        
-        structure = st.selectbox("🏗️ Sélectionner la structure :", STRUCTURES, key="struct_tache4")
-        
-        doc_type = st.radio("Type de document :", ["Autocontrôle", "PV"], key="radio_tache4")
-        
-        doc_key = f"{structure}_{doc_type}"
-        
-        uploaded = st.file_uploader(
-            f"📤 Uploader {doc_type} - {structure}", 
-            type=["pdf", "png", "jpg", "jpeg"],
-            key=f"upload_{cell_key}_{structure}_{doc_type}"
-        )
-        
-        if uploaded:
-            st.session_state.documents[cell_key][doc_key] = uploaded
-            st.success(f"✅ {doc_type} - {structure} uploadé : {uploaded.name}")
-        
-        if doc_key in st.session_state.documents[cell_key]:
-            st.download_button(
-                f"⬇️ Télécharger {doc_type} - {structure}",
-                data=st.session_state.documents[cell_key][doc_key],
-                file_name=st.session_state.documents[cell_key][doc_key].name
-            )
-        
-        # Afficher tous les documents uploadés pour cette cellule
-        if st.session_state.documents[cell_key]:
-            st.markdown("##### 📚 Documents uploadés pour cette cellule :")
-            for key in st.session_state.documents[cell_key]:
-                st.text(f"✓ {key}")
-
-# ============================================
-# === 2. DOSSIER DE DÉMARRAGE ===
-# ============================================
-elif st.session_state.selected_menu == "Dossier de démarrage de chantier":
-    st.info("🚀 Section en cours de développement")
-    st.write("Cette section contiendra les documents de démarrage du chantier (non liée au tableau).")
-    
-    st.markdown("### 📤 Upload de documents de démarrage")
-    uploaded_demarrage = st.file_uploader(
-        "Uploader des documents de démarrage", 
-        type=["pdf", "png", "jpg", "jpeg", "docx"],
-        accept_multiple_files=True
-    )
-    
-    if uploaded_demarrage:
-        st.success(f"✅ {len(uploaded_demarrage)} document(s) uploadé(s)")
-        for doc in uploaded_demarrage:
-            st.write(f"- {doc.name}")
-
-# ============================================
-# === 3. SUIVI DE CHAQUE TÂCHE (ARBORESCENCE) ===
-# ============================================
-elif st.session_state.selected_menu == "Suivi de chaque tâche":
-    st.markdown("### 📁 Arborescence des dossiers (même contenu que le tableau)")
-    
-    # Sélection de la tâche
-    tache = st.selectbox("📌 Sélectionner une tâche :", TACHES)
-    
-    st.markdown(f"#### 📂 {tache}")
-    
-    # Sélection de la villa
-    villa = st.selectbox("🏠 Sélectionner une villa :", VILLAS)
-    
-    st.markdown(f"#### 🏘️ {villa}")
-    
-    # Clé de la cellule
-    cell_key = f"{tache}|||{villa}"
-    
-    # Afficher les documents selon la tâche
-    st.markdown("---")
-    st.markdown("### 📄 Documents disponibles")
-    
-    if cell_key in st.session_state.documents and st.session_state.documents[cell_key]:
-        st.success(f"✅ Documents disponibles pour {tache} - {villa}")
-        
-        for doc_key, doc_file in st.session_state.documents[cell_key].items():
-            col1, col2 = st.columns([3, 1])
-            with col1:
-                st.write(f"📄 **{doc_key}** : {doc_file.name}")
-            with col2:
-                st.download_button(
-                    "⬇️",
-                    data=doc_file,
-                    file_name=doc_file.name,
-                    key=f"dl_{cell_key}_{doc_key}"
-                )
+# --- 2. FONCTIONS ---
+def charger_donnees():
+    if os.path.exists(FICHIER_DONNEES):
+        df = pd.read_csv(FICHIER_DONNEES, index_col=0)
     else:
-        st.warning("⚠️ Aucun document uploadé pour cette combinaison tâche-villa")
-        st.info("💡 Allez dans 'Tableau de suivi général' pour uploader des documents")
-    
-    # Afficher la structure pour tâches 3 et 4
-    if tache in ["Réception coffrage et ferraillage des semelles", "Réception béton des semelles par le labo"]:
-        st.markdown("---")
-        st.markdown("#### 🏗️ Documents par structure")
-        
-        for structure in STRUCTURES:
-            with st.expander(f"📁 {structure}"):
-                docs_found = False
-                if cell_key in st.session_state.documents:
-                    for doc_key in st.session_state.documents[cell_key]:
-                        if structure in doc_key:
-                            docs_found = True
-                            st.write(f"✓ {doc_key}")
-                
-                if not docs_found:
-                    st.info("Aucun document pour cette structure")
+        df = pd.DataFrame(index=LISTE_TACHES, columns=LISTE_VILLAS)
+        df = df.fillna("À faire")
+        df.to_csv(FICHIER_DONNEES)
+    return df
 
-# --- CSS STYLING ---
-st.markdown("""
-<style>
-    .stButton>button {
-        width: 100%;
-    }
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 10px;
-    }
-</style>
-""", unsafe_allow_html=True)
+def sauvegarder(df):
+    df.to_csv(FICHIER_DONNEES)
+
+# --- 3. BARRE LATÉRALE (NAVIGATION & SÉCURITÉ) ---
+st.sidebar.title("🗂️ Navigation")
+
+# --- SÉCURITÉ : MOT DE PASSE ADMIN ---
+st.sidebar.divider()
+st.sidebar.markdown("### 🔒 Espace Ingénieur")
+password = st.sidebar.text_input("Mot de passe Admin", type="password")
+
+# On définit si l'utilisateur est admin ou pas
+IS_ADMIN = False
+if password == "Noria2026":  # <--- Change ton mot de passe ici !
+    IS_ADMIN = True
+    st.sidebar.success("Mode Édition Activé ✅")
+else:
+    st.sidebar.info("Mode Lecture Seule 👀")
+
+st.sidebar.divider()
+
+choix_menu = st.sidebar.radio(
+    "Aller vers :",
+    ["📊 Tableau de Suivi Général", "📁 Dossier de démarrage", "📂 Suivi de chaque tâche"]
+)
+
+# --- 4. AFFICHAGE PRINCIPAL ---
+
+# ==========================================
+# VUE 1 : TABLEAU DE SUIVI GÉNÉRAL
+# ==========================================
+if choix_menu == "📊 Tableau de Suivi Général":
+    st.title("📊 Tableau de Bord - Suivi 108 Villas")
+    
+    df = charger_donnees()
+
+    # --- A. LE GRAND TABLEAU (D'ABORD) ---
+    st.markdown("### 👁️ Vue Globale du Chantier")
+    st.markdown("Usez de la barre de défilement en bas du tableau pour voir les 108 Villas.")
+
+    # Fonction de couleur améliorée
+    def colorer_cellules(val):
+        color = 'white'
+        border = '1px solid #eee'
+        font_weight = 'normal'
+        
+        if val == 'OK':
+            color = '#d4edda' # Vert clair
+            font_weight = 'bold'
+        elif val == 'Non Conforme':
+            color = '#f8d7da' # Rouge clair
+            font_weight = 'bold'
+        elif val == 'En cours':
+            color = '#fff3cd' # Jaune
+            
+        return f'background-color: {color}; border: {border}; font-weight: {font_weight}; color: black;'
+
+    # Affichage du tableau avec hauteur agrandie pour lisibilité
+    st.dataframe(
+        df.style.applymap(colorer_cellules), 
+        use_container_width=True, 
+        height=500  # Tableau plus haut
+    )
+
+    st.divider()
+
+    # --- B. L'INSPECTEUR INTELLIGENT (EN BAS) ---
+    # On met ça dans un conteneur pour faire joli
+    with st.container():
+        st.markdown("""<div class="inspecteur-box"><h3>🔎 Inspecteur de Tâche & Validation</h3>""", unsafe_allow_html=True)
+        
+        c1, c2 = st.columns(2)
+        with c1:
+            villa_select = st.selectbox("Choisir la Villa :", LISTE_VILLAS)
+        with c2:
+            tache_select = st.selectbox("Choisir la Tâche :", LISTE_TACHES)
+
+        # Récupération du statut actuel
+        statut_actuel = df.at[tache_select, villa_select]
+        
+        st.markdown("---")
+        
+        col_docs, col_valid = st.columns([2, 1])
+
+        # PARTIE GAUCHE : LES DOCUMENTS (Lecture pour tout le monde)
+        with col_docs:
+            st.markdown(f"#### 📂 Documents : {tache_select}")
+            st.info(f"Preuves pour la {villa_select}")
+            
+            # Logique d'affichage des boutons
+            if "Réception des axes" in tache_select:
+                tabs = st.tabs(["📐 Archi", "🗺️ Topo"])
+                with tabs[0]:
+                    c_a, c_b = st.columns(2)
+                    c_a.button(f"Voir Autocontrôle", key="auto_archi")
+                    c_b.button(f"Voir PV Archi", key="pv_archi")
+                with tabs[1]:
+                    st.button(f"Voir Scan Topo", key="scan_topo")
+
+            elif "fond de fouille" in tache_select:
+                 st.button(f"📄 Voir le Document Unique", key="doc_fouile")
+
+            elif "semelles" in tache_select:
+                c_a, c_b = st.columns(2)
+                c_a.button(f"Voir Autocontrôle", key="auto_sem")
+                c_b.button(f"Voir PV Réception", key="pv_sem")
+            
+            else:
+                st.write("Pas de documents configurés.")
+
+        # PARTIE DROITE : LA VALIDATION (Réservée à l'ADMIN)
+        with col_valid:
+            st.markdown("#### ✅ Validation")
+            
+            if IS_ADMIN:
+                # Si tu as mis le mot de passe : Tu vois les boutons pour modifier
+                options_statut = ["À faire", "En cours", "OK", "Non Conforme"]
+                index_statut = 0
+                if statut_actuel in options_statut:
+                    index_statut = options_statut.index(statut_actuel)
+                
+                nouveau_statut = st.radio("Changer l'état :", options_statut, index=index_statut)
+                
+                if nouveau_statut != statut_actuel:
+                    df.at[tache_select, villa_select] = nouveau_statut
+                    sauvegarder(df)
+                    st.success("Statut mis à jour !")
+                    time.sleep(0.5)
+                    st.rerun()
+            else:
+                # Si c'est le Boss (pas de mot de passe) : Il voit juste le texte
+                st.markdown(f"Statut actuel : **{statut_actuel}**")
+                
+                # Petite logique visuelle pour le boss
+                if statut_actuel == "OK":
+                    st.markdown("🟢 **VALIDÉ**")
+                elif statut_actuel == "Non Conforme":
+                    st.markdown("🔴 **NON CONFORME**")
+                else:
+                    st.markdown("⚪ En attente")
+                    
+                st.caption("🔒 Modification réservée à l'ingénieur")
+
+        st.markdown("</div>", unsafe_allow_html=True) # Fin de la boite
+
+
+# ==========================================
+# VUE 2 & 3 (Restent pareilles pour l'instant)
+# ==========================================
+elif choix_menu == "📁 Dossier de démarrage":
+    st.title("📁 Dossier de Démarrage Chantier")
+    st.write("Section en construction...")
+
+elif choix_menu == "📂 Suivi de chaque tâche":
+    st.title("📂 Explorateur de Dossiers")
+    st.write("Section en construction...")
