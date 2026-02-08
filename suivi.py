@@ -99,16 +99,13 @@ if choix_menu == "📊 Tableau de Suivi Général":
         elif val == 'En cours': color = '#fff3cd'
         return f'background-color: {color}; color: black;'
 
-    # Affichage simple et stable
+    # On affiche le dataframe SANS paramètres de sélection pour qu'il soit statique
     st.dataframe(
         df.style.applymap(colorer_cellules),
         use_container_width=True,
-        height=700
+        height=600
     )
     
-
-    
-
 
 # ==========================================
 # VUES SECONDAIRES (LIÉES AUX MÊMES DONNÉES)
