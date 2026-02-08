@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import os
 import time
-import streamlit.components.v1 as components # Nécessaire pour l'auto-scroll
+import streamlit.components.v1 as components
 
 # --- 0. CONFIGURATION DE LA PAGE & INTRO ---
 st.set_page_config(page_title="Suivi Chantier Noria", layout="wide")
@@ -113,8 +113,8 @@ if choix_menu == "📊 Tableau de Suivi Général":
     if 'trigger_scroll' not in st.session_state:
         st.session_state['trigger_scroll'] = False
 
-    # --- A. LE TABLEAU (AVEC DÉTECTION DU CLIC) ---
-    st.info("👇 Cliquez sur une ligne de tâche pour voir les détails en bas.")
+    # --- A. LE TABLEAU (AVEC DÉTECTION DU CLIC SUR LA CELLULE) ---
+    st.info("👇 Cliquez sur une case pour voir les détails en bas (automatique).")
 
     def colorer_cellules(val):
         color = 'white'
@@ -124,31 +124,34 @@ if choix_menu == "📊 Tableau de Suivi Général":
         else: color = 'white'; font_weight = 'normal'
         return f'background-color: {color}; color: black; font-weight: {font_weight}'
 
-    # Affichage du tableau
+    # Affichage du tableau avec détection de CELLULE (pas juste ligne)
     event = st.dataframe(
         df.style.applymap(colorer_cellules),
         use_container_width=True,
         height=400,
-        on_select="rerun", # C'est ça qui recharge la page au clic
-        selection_mode="single-row"
+        on_select="rerun",
+        selection_mode="single-cell"  # 🎯 CHANGEMENT : détecte ligne ET colonne
     )
 
-    # --- LOGIQUE INTELLIGENTE : CLIC -> MISE À JOUR -> SCROLL ---
-    if len(event.selection.rows) > 0:
-        row_clicked = event.selection.rows[0]
+    # --- LOGIQUE INTELLIGENTE : CLIC CELLULE -> MISE À JOUR TÂCHE + VILLA -> SCROLL ---
+    if len(event.selection.rows) > 0 and len(event.selection.columns) > 0:
+        row_clicked = event.selection.rows[0]      # Index de la tâche
+        col_clicked = event.selection.columns[0]   # Index de la villa
         
-        # Si c'est une nouvelle ligne cliquée, on met à jour et on déclenche le scroll
-        if row_clicked != st.session_state['selected_tache_index']:
+        # Si c'est une nouvelle cellule (tâche OU villa différente)
+        if (row_clicked != st.session_state['selected_tache_index'] or 
+            col_clicked != st.session_state['selected_villa_index']):
+            
+            # 🎯 Mise à jour des DEUX sélections
             st.session_state['selected_tache_index'] = row_clicked
-            st.session_state['trigger_scroll'] = True # On arme le scroll
+            st.session_state['selected_villa_index'] = col_clicked
+            st.session_state['trigger_scroll'] = True  # Déclenche le scroll auto
     
     # --- B. ANCRE HTML POUR LE SCROLL ---
-    # C'est ici que la page va atterrir
     st.markdown("<div id='inspecteur_ancre' class='inspecteur-target'></div>", unsafe_allow_html=True)
 
     # --- C. JAVASCRIPT POUR FAIRE LE SCROLL AUTOMATIQUE ---
     if st.session_state['trigger_scroll']:
-        # Ce petit script s'exécute et fait descendre la page
         components.html("""
             <script>
                 var element = window.parent.document.getElementById('inspecteur_ancre');
@@ -157,18 +160,17 @@ if choix_menu == "📊 Tableau de Suivi Général":
                 }
             </script>
         """, height=0)
-        # On désarme le scroll pour pas que ça le refasse en boucle
-        st.session_state['trigger_scroll'] = False
+        st.session_state['trigger_scroll'] = False  # Désarme le scroll
 
 
-    # --- D. L'INSPECTEUR (ZONE BLEUE) ---
+    # --- D. L'INSPECTEUR (ZONE BLEUE) - MAINTENANT 100% SYNCHRONISÉ ---
     with st.container():
         st.markdown("""<div class="inspecteur-box"><h3>🔎 Détails & Documents</h3>""", unsafe_allow_html=True)
         
         c1, c2 = st.columns([1, 2])
         
         with c1:
-            # SÉLECTEUR DE TÂCHE : Il est piloté par le clic du tableau (index=...)
+            # SÉLECTEUR DE TÂCHE : Piloté par le clic du tableau
             tache_select = st.selectbox(
                 "Tâche sélectionnée :", 
                 LISTE_TACHES, 
@@ -176,28 +178,28 @@ if choix_menu == "📊 Tableau de Suivi Général":
                 key="box_tache"
             )
         with c2:
-            # SÉLECTEUR DE VILLA : Indépendant (le boss choisit sa villa)
+            # SÉLECTEUR DE VILLA : 🎯 MAINTENANT AUSSI PILOTÉ PAR LE CLIC !
             villa_select = st.selectbox(
                 "Choisir la Villa concernée :", 
                 LISTE_VILLAS,
                 index=st.session_state['selected_villa_index'], 
                 key="box_villa"
             )
-            # On sauvegarde le choix de la villa pour pas qu'il se reset
+            # Synchro manuelle si le boss change manuellement la villa
             st.session_state['selected_villa_index'] = LISTE_VILLAS.index(villa_select)
 
-        # Récupération du statut
+        # Récupération du statut de la cellule sélectionnée
         statut_actuel = df.at[tache_select, villa_select]
         
         st.markdown("---")
         
         col_docs, col_valid = st.columns([2, 1])
 
-        # PARTIE DOCUMENTS (DYNAMIQUE SELON LA TÂCHE)
+        # PARTIE DOCUMENTS (DYNAMIQUE SELON LA TÂCHE CLIQUÉE)
         with col_docs:
             st.markdown(f"**📂 Preuves pour : {tache_select}**")
             
-            # C'est ici que le contenu change selon la tâche cliquée
+            # Affichage intelligent selon la tâche
             if "Réception des axes" in tache_select:
                 doc_type = st.radio("Type de doc :", ["Archi", "Topo"], horizontal=True)
                 if doc_type == "Archi":
@@ -211,7 +213,6 @@ if choix_menu == "📊 Tableau de Suivi Général":
                  st.button(f"📄 Document Unique ({villa_select})", use_container_width=True)
 
             elif "semelles" in tache_select:
-                # Coffrage ou Béton
                 c_a, c_b = st.columns(2)
                 c_a.button(f"📂 Autocontrôle ({villa_select})", use_container_width=True)
                 c_b.button(f"📄 PV Réception ({villa_select})", use_container_width=True)
@@ -234,7 +235,7 @@ if choix_menu == "📊 Tableau de Suivi Général":
                     time.sleep(0.5)
                     st.rerun()
             else:
-                # Vue Boss
+                # Vue Boss (Lecture seule)
                 color_text = "green" if statut_actuel == "OK" else "red" if statut_actuel == "Non Conforme" else "grey"
                 st.markdown(f"<h3 style='color:{color_text}'>{statut_actuel}</h3>", unsafe_allow_html=True)
                 if statut_actuel == "OK": st.balloons()
@@ -250,16 +251,13 @@ elif choix_menu == "📁 Dossier de démarrage":
     st.info("Plans généraux, Permis, etc.")
 
 elif choix_menu == "📂 Suivi de chaque tâche":
-    # CETTE VUE UTILISE LES MÊMES DONNÉES QUE LE TABLEAU
     st.title("📂 Explorateur de Dossiers (Vue Arborescence)")
     
-    # On reprend la logique des boutons mais affichée différemment
     folder_tache = st.selectbox("Ouvrir le dossier de la tâche :", LISTE_TACHES)
     folder_villa = st.selectbox("Ouvrir la villa :", LISTE_VILLAS)
     
     st.markdown(f"### 📂 {folder_tache} > {folder_villa}")
     
-    # Exactement la même logique d'affichage que dans l'inspecteur
     if "Réception des axes" in folder_tache:
         st.write("📄 **Sous-dossier Archi** : [Autocontrôle.pdf] | [PV.pdf]")
         st.write("📐 **Sous-dossier Topo** : [Scan_Topo.pdf]")
@@ -268,7 +266,6 @@ elif choix_menu == "📂 Suivi de chaque tâche":
     else:
         st.write("📄 **Document** : [Doc_Unique.pdf]")
         
-    # On montre le statut actuel (Preuve que c'est lié au tableau)
     df = charger_donnees()
     statut = df.at[folder_tache, folder_villa]
     st.caption(f"Statut actuel dans le tableau : {statut}")
