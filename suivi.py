@@ -6,54 +6,42 @@ import time
 # --- 0. CONFIGURATION DE LA PAGE & INTRO ---
 st.set_page_config(page_title="Suivi Chantier Noria", layout="wide")
 
-# CSS PERSONNALISÉ
+# CSS PERSONNALISÉ POUR EMBELLIR LE TABLEAU ET AGRANDIR LE TEXTE
 st.markdown("""
     <style>
         /* Agrandir la police du tableau */
         div[data-testid="stDataFrame"] div[data-testid="stTable"] {
-            font-size: 1.1rem !important;
-        }
-        /* Headers du tableau */
-        div[data-testid="stDataFrame"] th {
             font-size: 1.2rem !important;
+        }
+        /* Agrandir les headers (Titres des colonnes) */
+        div[data-testid="stDataFrame"] th {
+            font-size: 1.3rem !important;
             background-color: #f0f2f6;
             color: #1f77b4;
-            text-align: center;
         }
-        /* Enlever les marges de l'image */
+        /* Enlever les marges pour l'image d'intro */
         .block-container {
             padding-top: 1rem;
             padding-left: 1rem;
             padding-right: 1rem;
         }
-        /* Style pour l'inspecteur (Zone du bas) */
+        /* Style pour l'inspecteur */
         .inspecteur-box {
-            background-color: #e3f2fd; /* Bleu très clair pour attirer l'oeil */
+            background-color: #f9f9f9;
             padding: 20px;
             border-radius: 10px;
-            border-left: 5px solid #1f77b4;
-            margin-top: 10px;
-            margin-bottom: 50px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        }
-        /* Style pour la boite d'aide (Info Boss) */
-        .help-box {
-            background-color: #fff3cd;
-            border: 1px solid #ffeeba;
-            color: #856404;
-            padding: 15px;
-            border-radius: 5px;
-            margin-bottom: 10px;
-            font-size: 1rem;
+            border: 1px solid #ddd;
+            margin-top: 20px;
         }
     </style>
 """, unsafe_allow_html=True)
 
-# Intro (Image Noria)
+# Vérifie si l'intro a déjà été montrée
 if "intro_complete" not in st.session_state:
     intro_placeholder = st.empty()
     with intro_placeholder.container():
         st.image("noria.jpg", use_container_width=True)
+    
     time.sleep(2)
     with st.spinner("Chargement du tableau de bord..."):
         time.sleep(1.0)
@@ -87,13 +75,14 @@ def sauvegarder(df):
 # --- 3. BARRE LATÉRALE (NAVIGATION & SÉCURITÉ) ---
 st.sidebar.title("🗂️ Navigation")
 
-# --- SÉCURITÉ ---
+# --- SÉCURITÉ : MOT DE PASSE ADMIN ---
 st.sidebar.divider()
 st.sidebar.markdown("### 🔒 Espace Ingénieur")
 password = st.sidebar.text_input("Mot de passe Admin", type="password")
 
+# On définit si l'utilisateur est admin ou pas
 IS_ADMIN = False
-if password == "Noria2026": 
+if password == "Noria2026":  # <--- Change ton mot de passe ici !
     IS_ADMIN = True
     st.sidebar.success("Mode Édition Activé ✅")
 else:
@@ -108,139 +97,131 @@ choix_menu = st.sidebar.radio(
 
 # --- 4. AFFICHAGE PRINCIPAL ---
 
+# ==========================================
+# VUE 1 : TABLEAU DE SUIVI GÉNÉRAL
+# ==========================================
 if choix_menu == "📊 Tableau de Suivi Général":
     st.title("📊 Tableau de Bord - Suivi 108 Villas")
     
     df = charger_donnees()
 
-    # --- A. BOITE D'AIDE INTELLIGENTE (REMPLACE LE TEXTE MOCHE) ---
-    st.markdown("""
-        <div class="help-box">
-            👉 <b>Guide Rapide :</b><br>
-            1. <b>Cliquez sur une ligne du tableau</b> ci-dessous pour inspecter une tâche.<br>
-            2. Descendez vers la zone bleue en bas pour voir les <b>documents (PV, Autocontrôle)</b>.
-        </div>
-    """, unsafe_allow_html=True)
+    # --- A. LE GRAND TABLEAU (D'ABORD) ---
+    st.markdown("### 👁️ Vue Globale du Chantier")
+    st.markdown("Usez de la barre de défilement en bas du tableau pour voir les 108 Villas.")
 
-    # --- B. LE TABLEAU INTERACTIF ---
-    
-    # Fonction de couleur
+    # Fonction de couleur améliorée
     def colorer_cellules(val):
         color = 'white'
-        if val == 'OK': color = '#d4edda'; font_weight = 'bold' # Vert
-        elif val == 'Non Conforme': color = '#f8d7da'; font_weight = 'bold' # Rouge
-        elif val == 'En cours': color = '#fff3cd'; font_weight = 'normal' # Jaune
-        else: color = 'white'; font_weight = 'normal'
-        return f'background-color: {color}; color: black; font-weight: {font_weight}'
+        border = '1px solid #eee'
+        font_weight = 'normal'
+        
+        if val == 'OK':
+            color = '#d4edda' # Vert clair
+            font_weight = 'bold'
+        elif val == 'Non Conforme':
+            color = '#f8d7da' # Rouge clair
+            font_weight = 'bold'
+        elif val == 'En cours':
+            color = '#fff3cd' # Jaune
+            
+        return f'background-color: {color}; border: {border}; font-weight: {font_weight}; color: black;'
 
-    # Affichage du tableau avec SELECTION ACTIVÉE
-    # on_select="rerun" permet de recharger la page dès qu'on clique
-    event = st.dataframe(
-        df.style.applymap(colorer_cellules),
-        use_container_width=True,
-        height=400,
-        on_select="rerun",  # <--- C'est ça qui enlève le lag et active le clic
-        selection_mode="single-row" # On sélectionne une ligne (une tâche)
+    # Affichage du tableau avec hauteur agrandie pour lisibilité
+    st.dataframe(
+        df.style.applymap(colorer_cellules), 
+        use_container_width=True, 
+        height=500  # Tableau plus haut
     )
 
-    # --- LOGIQUE DE SYNCHRONISATION (LE CLIC MAGIQUE) ---
-    # Par défaut, on garde la sélection précédente ou la première
-    index_tache_selectionnee = 0 
-    
-    # Si l'utilisateur a cliqué sur une ligne
-    if len(event.selection.rows) > 0:
-        row_index = event.selection.rows[0]
-        # On met à jour la variable pour l'inspecteur en bas
-        index_tache_selectionnee = row_index
-        # Petit message pour confirmer le clic
-        st.toast(f"Tâche sélectionnée : {LISTE_TACHES[row_index]}", icon="👇")
+    st.divider()
 
-
-    # --- C. L'INSPECTEUR INTELLIGENT (Zone Bleue) ---
-    
-    # Ancre HTML pour le repère visuel
-    st.markdown("<div id='inspecteur_zone'></div>", unsafe_allow_html=True)
-    
+    # --- B. L'INSPECTEUR INTELLIGENT (EN BAS) ---
+    # On met ça dans un conteneur pour faire joli
     with st.container():
-        # Début de la boite stylisée
-        st.markdown("""<div class="inspecteur-box"><h3>🔎 Détails & Documents</h3>""", unsafe_allow_html=True)
+        st.markdown("""<div class="inspecteur-box"><h3>🔎 Inspecteur de Tâche & Validation</h3>""", unsafe_allow_html=True)
         
-        c1, c2 = st.columns([1, 2])
-        
+        c1, c2 = st.columns(2)
         with c1:
-            # Le sélecteur de Tâche se met à jour AUTOMATIQUEMENT grâce à index=index_tache_selectionnee
-            tache_select = st.selectbox(
-                "Tâche sélectionnée :", 
-                LISTE_TACHES, 
-                index=index_tache_selectionnee,
-                key="tache_box"
-            )
+            villa_select = st.selectbox("Choisir la Villa :", LISTE_VILLAS)
         with c2:
-            # Sélecteur de Villa (Reste manuel car impossible à détecter 100% fiable au clic simple)
-            villa_select = st.selectbox("Choisir la Villa concernée :", LISTE_VILLAS)
+            tache_select = st.selectbox("Choisir la Tâche :", LISTE_TACHES)
 
-        # Récupération des données
+        # Récupération du statut actuel
         statut_actuel = df.at[tache_select, villa_select]
         
         st.markdown("---")
         
         col_docs, col_valid = st.columns([2, 1])
 
-        # DOCUMENTS
+        # PARTIE GAUCHE : LES DOCUMENTS (Lecture pour tout le monde)
         with col_docs:
-            st.markdown(f"**📂 Preuves : {tache_select} / {villa_select}**")
+            st.markdown(f"#### 📂 Documents : {tache_select}")
+            st.info(f"Preuves pour la {villa_select}")
             
-            # Logique des boutons de preuves
+            # Logique d'affichage des boutons
             if "Réception des axes" in tache_select:
-                doc_type = st.radio("Type :", ["Archi", "Topo"], horizontal=True, label_visibility="collapsed")
-                if doc_type == "Archi":
+                tabs = st.tabs(["📐 Archi", "🗺️ Topo"])
+                with tabs[0]:
                     c_a, c_b = st.columns(2)
-                    c_a.button("📂 Autocontrôle", use_container_width=True)
-                    c_b.button("📄 PV Archi", use_container_width=True)
-                else:
-                    st.button("📐 Scan Topo", use_container_width=True)
+                    c_a.button(f"Voir Autocontrôle", key="auto_archi")
+                    c_b.button(f"Voir PV Archi", key="pv_archi")
+                with tabs[1]:
+                    st.button(f"Voir Scan Topo", key="scan_topo")
 
             elif "fond de fouille" in tache_select:
-                 st.button("📄 Document Unique", use_container_width=True)
+                 st.button(f"📄 Voir le Document Unique", key="doc_fouile")
 
             elif "semelles" in tache_select:
                 c_a, c_b = st.columns(2)
-                c_a.button("📂 Autocontrôle", use_container_width=True)
-                c_b.button("📄 PV Réception", use_container_width=True)
+                c_a.button(f"Voir Autocontrôle", key="auto_sem")
+                c_b.button(f"Voir PV Réception", key="pv_sem")
             
             else:
-                st.info("Aucun document requis pour cette étape.")
+                st.write("Pas de documents configurés.")
 
-        # VALIDATION (Admin Seulement)
+        # PARTIE DROITE : LA VALIDATION (Réservée à l'ADMIN)
         with col_valid:
-            st.markdown("**Validation**")
+            st.markdown("#### ✅ Validation")
+            
             if IS_ADMIN:
-                opts = ["À faire", "En cours", "OK", "Non Conforme"]
-                idx = opts.index(statut_actuel) if statut_actuel in opts else 0
-                new_statut = st.radio("Statut", opts, index=idx, label_visibility="collapsed")
+                # Si tu as mis le mot de passe : Tu vois les boutons pour modifier
+                options_statut = ["À faire", "En cours", "OK", "Non Conforme"]
+                index_statut = 0
+                if statut_actuel in options_statut:
+                    index_statut = options_statut.index(statut_actuel)
                 
-                if new_statut != statut_actuel:
-                    df.at[tache_select, villa_select] = new_statut
+                nouveau_statut = st.radio("Changer l'état :", options_statut, index=index_statut)
+                
+                if nouveau_statut != statut_actuel:
+                    df.at[tache_select, villa_select] = nouveau_statut
                     sauvegarder(df)
-                    st.success("Enregistré !")
+                    st.success("Statut mis à jour !")
                     time.sleep(0.5)
                     st.rerun()
             else:
-                # Vue Boss
-                color_text = "green" if statut_actuel == "OK" else "red" if statut_actuel == "Non Conforme" else "grey"
-                st.markdown(f"<h3 style='color:{color_text}'>{statut_actuel}</h3>", unsafe_allow_html=True)
-                if statut_actuel == "OK": st.balloons()
+                # Si c'est le Boss (pas de mot de passe) : Il voit juste le texte
+                st.markdown(f"Statut actuel : **{statut_actuel}**")
+                
+                # Petite logique visuelle pour le boss
+                if statut_actuel == "OK":
+                    st.markdown("🟢 **VALIDÉ**")
+                elif statut_actuel == "Non Conforme":
+                    st.markdown("🔴 **NON CONFORME**")
+                else:
+                    st.markdown("⚪ En attente")
+                    
+                st.caption("🔒 Modification réservée à l'ingénieur")
 
-        st.markdown("</div>", unsafe_allow_html=True) # Fin de la boite bleue
+        st.markdown("</div>", unsafe_allow_html=True) # Fin de la boite
 
 
 # ==========================================
-# AUTRES VUES
+# VUE 2 & 3 (Restent pareilles pour l'instant)
 # ==========================================
 elif choix_menu == "📁 Dossier de démarrage":
-    st.title("📁 Dossier de Démarrage")
-    st.info("Espace de stockage global.")
+    st.title("📁 Dossier de Démarrage Chantier")
+    st.write("Section en construction...")
 
 elif choix_menu == "📂 Suivi de chaque tâche":
     st.title("📂 Explorateur de Dossiers")
-    st.info("Vue détaillée par dossiers.")
+    st.write("Section en construction...")
